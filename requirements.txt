@@ -1,0 +1,10 @@
+# API通信用
+requests==2.31.0
+# RSSパース用
+feedparser==6.0.11
+# Supabaseクライアント
+supabase==2.3.4
+# Gemini API用
+google-generativeai==0.4.1
+# 環境変数読み込み用 (ローカル実行・テスト時)
+python-dotenv==1.0.1
