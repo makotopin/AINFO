@@ -20,23 +20,34 @@ def filter_unprocessed_articles(articles: list[dict]) -> list[dict]:
     if not articles:
         return []
         
-    supabase = get_supabase_client()
-    
-    # URLのリストを作成
-    urls = [article['link'] for article in articles]
-    
-    # DBに存在するURLを一括取得
-    # in_() フィルタを使用して複数URLを一度に検索
-    response = supabase.table("ai_news_articles").select("url").in_("url", urls).execute()
-    
-    # 既存URLのSetを作成
-    existing_urls = {record['url'] for record in response.data}
-    
-    # 新規に処理すべき記事だけを残す
-    unprocessed = [a for a in articles if a['link'] not in existing_urls]
-    
-    print(f"Total fetched: {len(articles)}, Already processed: {len(existing_urls)}, New: {len(unprocessed)}")
-    return unprocessed
+    try:
+        supabase = get_supabase_client()
+        
+        # URLのリストを作成
+        urls = [article['link'] for article in articles]
+        
+        # DBに存在するURLを一括取得
+        response = supabase.table("ai_news_articles").select("url").in_("url", urls).execute()
+        
+        # 既存URLのSetを作成
+        existing_urls = {record['url'] for record in response.data}
+        
+        # 新規に処理すべき記事だけを残す
+        unprocessed = [a for a in articles if a['link'] not in existing_urls]
+        
+        print(f"Total fetched: {len(articles)}, Already processed: {len(existing_urls)}, New: {len(unprocessed)}")
+        
+        # Geminiの無料枠制限(429 Quota Exceeded)を回避するため、
+        # 未処理の中でも最新の10件程度に絞って判定に回す
+        if len(unprocessed) > 10:
+            print(f"Limiting to latest 10 articles for Gemini analysis to avoid quota limits.")
+            unprocessed = unprocessed[:10]
+            
+        return unprocessed
+    except Exception as e:
+        print(f"Supabase connection error: {e}")
+        # DBが繋がらなくても最新10件を判定に回すようにする
+        return articles[:10]
 
 def save_articles(processed_articles: list[dict]):
     """
