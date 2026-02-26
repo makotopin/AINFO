@@ -15,78 +15,74 @@ else:
     model = None
     print("Warning: GEMINI_API_KEY is not set.")
 
+import time
+
 def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dict]:
     """
-    記事リストをGeminiに渡し、重要度を判定・スコアリングして上位N件を要約付きで返す。
+    記事リストを1件ずつGeminiに渡し、重要度を判定・スコアリングする。
+    スコアが高い上位N件を返す。
     """
     if not articles or not model:
         return []
 
-    # プロンプトに渡すために記事リストをテキスト化
-    articles_text = ""
+    print(f"Analyzing {len(articles)} articles individually to avoid rate limits...")
+    final_articles = []
+    
     for i, article in enumerate(articles):
-        articles_text += f"[{i}] Title: {article['title']}\n URL: {article['link']}\n\n"
-
-    prompt = f"""
-あなたはプロのAIキュレーターです。以下の最新ニュース記事リストから、最も注目すべき重要なAIニュースを厳選し、評価してください。
+        print(f"[{i+1}/{len(articles)}] Analyzing: {article['title']}")
+        prompt = f"""
+あなたはプロのAIキュレーターです。以下のAI関連ニュース記事を評価してください。
 
 【評価基準】
 以下の要素を持つ記事を高く評価（スコアリング）してください。
-- 優先度「高」: ChatGPT, Claude, Gemini のメジャーアップデートや新機能リリース情報
-- 優先度「中」: 新しいAIツール・サービス（特に無料で試せるもの）の紹介やリリース情報
-- 優先度「低」: 個別企業の小さな導入事例や、一般的なAIのポエム・オピニオン記事
+- 優先度「高」(80-100点): ChatGPT, Claude, Gemini のメジャーアップデートや新機能リリース情報
+- 優先度「中」(50-79点): 新しいAIツール・サービス（特に無料で試せるもの）の紹介やリリース情報
+- 優先度「低」(0-49点): 個別企業の小さな導入事例や、一般的なAIのポエム・オピニオン記事
 
 【指示】
-1. リストの中から、上記基準に従って最も重要なニュースを「最大 {top_n} 件」選出してください。（該当が少ない場合はそれ以下でも構いません）
-2. 選出した各記事について、日本語で3〜5行程度の簡潔で分かりやすい「要約」を作成してください。
+1. この記事の重要度を0〜100のスコアで評価してください。
+2. 日本語で3〜5行程度の簡潔で分かりやすい「要約」を作成してください。
 3. 以下のJSONフォーマットで出力してください。JSON以外のテキスト（マークダウンの```json等）は含めないでください。
 
-[
-  {{
-    "title": "元の記事のタイトル",
-    "url": "元の記事のURL",
-    "summary": "作成した要約文",
-    "score": 95
-  }},
-  ...
-]
+{{
+  "title": "{article['title']}",
+  "url": "{article['link']}",
+  "summary": "作成した要約文",
+  "score": 85
+}}
 
-【記事リスト】
-{articles_text}
+【記事タイトル】
+{article['title']}
+【記事URL】
+{article['link']}
 """
+        try:
+            response = model.generate_content(prompt)
+            text = response.text.strip()
+            
+            # ```json などのマークダウン装飾を取り除く
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+                
+            result_json = json.loads(text.strip())
+            
+            # 元のpublished情報を結合
+            result_json['published'] = article.get('published', '')
+            final_articles.append(result_json)
+            
+        except Exception as e:
+            print(f"Error analyzing article '{article['title']}': {e}")
+            
+        # Rate limit回避のためのウェイト (最後以外)
+        if i < len(articles) - 1:
+            time.sleep(3)
 
-    print(f"Sending {len(articles)} articles to Gemini for analysis...")
+    print(f"Analyzed {len(final_articles)} articles successfully.")
     
-    try:
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        # ```json などのマークダウン装飾を取り除く
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-            
-        result_json = json.loads(text.strip())
-        
-        # 必要な情報を補完
-        final_articles = []
-        for item in result_json:
-            # 元のpublished情報を結合するための検索
-            original_published = ""
-            for a in articles:
-                if a['link'] == item['url'] or a['title'] == item['title']:
-                    original_published = a.get('published', '')
-                    break
-            
-            item['published'] = original_published
-            final_articles.append(item)
-            
-        print(f"Gemini selected {len(final_articles)} important articles.")
-        return final_articles[:top_n]
-        
-    except Exception as e:
-        print(f"Error during Gemini analysis: {e}")
-        return []
+    # スコアで降順にソートし、上位N件を返す
+    final_articles.sort(key=lambda x: x.get('score', 0), reverse=True)
+    return final_articles[:top_n]
