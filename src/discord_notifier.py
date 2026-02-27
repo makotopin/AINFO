@@ -8,7 +8,7 @@ def send_to_discord(articles: list[dict]):
     """
     要約済みの記事リストをDiscord Webhookに送信する。
     """
-    webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
+    webhook_url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     if not webhook_url:
         print("Warning: DISCORD_WEBHOOK_URL is not set. Skipping Discord notification.")
         return
@@ -28,7 +28,7 @@ def send_to_discord(articles: list[dict]):
             "url": article.get('url', ''),
             "description": article.get('summary', 'No summary available.'),
             "color": color,
-            "footer": {"text": "AI News Bot - Powerd by Gemini"},
+            "footer": {"text": "AI News Bot - Powered by Llama 3.3 (Groq)"},
             "timestamp": article.get('published', '')
         }
         embeds.append(embed)
