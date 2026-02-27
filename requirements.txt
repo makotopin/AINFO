@@ -4,7 +4,7 @@ requests==2.31.0
 feedparser==6.0.11
 # Supabaseクライアント
 supabase==2.11.0
-# OpenAI API用
-openai>=1.0.0
+# Groq API用（無料）
+groq>=0.4.0
 # 環境変数読み込み用 (ローカル実行・テスト時)
 python-dotenv==1.0.1

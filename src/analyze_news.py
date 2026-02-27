@@ -1,28 +1,28 @@
 import os
 import json
 import time
-from openai import OpenAI
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# OpenAI API の設定
-api_key = os.environ.get("OPENAI_API_KEY")
+# Groq API の設定
+api_key = os.environ.get("GROQ_API_KEY")
 if api_key:
-    client = OpenAI(api_key=api_key)
+    client = Groq(api_key=api_key)
 else:
     client = None
-    print("Warning: OPENAI_API_KEY is not set.")
+    print("Warning: GROQ_API_KEY is not set.")
 
 def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dict]:
     """
-    記事リストを1件ずつChatGPT (GPT-4o-mini) に渡し、重要度を判定・スコアリングする。
+    記事リストを1件ずつGroq (Llama 3.3 70B) に渡し、重要度を判定・スコアリングする。
     スコアが高い上位N件を返す。
     """
     if not articles or not client:
         return []
 
-    print(f"Analyzing {len(articles)} articles individually with GPT-4o-mini...")
+    print(f"Analyzing {len(articles)} articles individually with Groq (Llama 3.3 70B)...")
     final_articles = []
     
     for i, article in enumerate(articles):
@@ -54,7 +54,7 @@ def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dic
 
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": "あなたはAIニュースの専門キュレーターです。指示された通りにJSONのみを出力してください。"},
                     {"role": "user", "content": prompt}
@@ -82,7 +82,7 @@ def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dic
             
         # Rate limit回避のためのウェイト (最後以外)
         if i < len(articles) - 1:
-            time.sleep(1)
+            time.sleep(2)
 
     print(f"Analyzed {len(final_articles)} articles successfully.")
     
