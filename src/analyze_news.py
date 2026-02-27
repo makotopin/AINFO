@@ -9,8 +9,8 @@ load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
-    # Gemini 2.0 Flash をデフォルトで使用
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    # Gemini 2.0 Flash Lite を使用（無料枠の制限が緩い）
+    model = genai.GenerativeModel('gemini-2.0-flash-lite')
 else:
     model = None
     print("Warning: GEMINI_API_KEY is not set.")
