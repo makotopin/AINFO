@@ -1,37 +1,33 @@
 import os
 import json
-import google.generativeai as genai
+import time
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Gemini API の設定
-api_key = os.environ.get("GEMINI_API_KEY")
+# OpenAI API の設定
+api_key = os.environ.get("OPENAI_API_KEY")
 if api_key:
-    genai.configure(api_key=api_key)
-    # Gemini 2.0 Flash Lite を使用（無料枠の制限が緩い）
-    model = genai.GenerativeModel('gemini-2.0-flash-lite')
+    client = OpenAI(api_key=api_key)
 else:
-    model = None
-    print("Warning: GEMINI_API_KEY is not set.")
-
-import time
+    client = None
+    print("Warning: OPENAI_API_KEY is not set.")
 
 def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dict]:
     """
-    記事リストを1件ずつGeminiに渡し、重要度を判定・スコアリングする。
+    記事リストを1件ずつChatGPT (GPT-4o-mini) に渡し、重要度を判定・スコアリングする。
     スコアが高い上位N件を返す。
     """
-    if not articles or not model:
+    if not articles or not client:
         return []
 
-    print(f"Analyzing {len(articles)} articles individually to avoid rate limits...")
+    print(f"Analyzing {len(articles)} articles individually with GPT-4o-mini...")
     final_articles = []
     
     for i, article in enumerate(articles):
         print(f"[{i+1}/{len(articles)}] Analyzing: {article['title']}")
-        prompt = f"""
-あなたはプロのAIキュレーターです。以下のAI関連ニュース記事を評価してください。
+        prompt = f"""あなたはプロのAIキュレーターです。以下のAI関連ニュース記事を評価してください。
 
 【評価基準】
 以下の要素を持つ記事を高く評価（スコアリング）してください。
@@ -54,11 +50,18 @@ def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dic
 【記事タイトル】
 {article['title']}
 【記事URL】
-{article['link']}
-"""
+{article['link']}"""
+
         try:
-            response = model.generate_content(prompt)
-            text = response.text.strip()
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "あなたはAIニュースの専門キュレーターです。指示された通りにJSONのみを出力してください。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+            )
+            text = response.choices[0].message.content.strip()
             
             # ```json などのマークダウン装飾を取り除く
             if text.startswith("```json"):
@@ -79,7 +82,7 @@ def analyze_and_score_articles(articles: list[dict], top_n: int = 3) -> list[dic
             
         # Rate limit回避のためのウェイト (最後以外)
         if i < len(articles) - 1:
-            time.sleep(3)
+            time.sleep(1)
 
     print(f"Analyzed {len(final_articles)} articles successfully.")
     
